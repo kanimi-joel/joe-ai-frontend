@@ -1,5 +1,6 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
+import Chat from './components/Chat';
 import axios from "axios";
 import * as pdfjsLib from "pdfjs-dist";
 import { saveAs } from "file-saver";
@@ -195,7 +196,7 @@ await storeChat(queryText, answer);
   >
     Logout
   </button>
-
+<Chat />
   {/* Dark Mode Toggle */}
   <button
     onClick={() => setDarkMode(!darkMode)}
