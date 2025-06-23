@@ -196,7 +196,6 @@ await storeChat(queryText, answer);
   >
     Logout
   </button>
-<Chat />
   {/* Dark Mode Toggle */}
   <button
     onClick={() => setDarkMode(!darkMode)}
