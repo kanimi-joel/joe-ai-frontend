@@ -1,6 +1,5 @@
 // src/App.js
 import React, { useState, useEffect } from "react";
-import Chat from './components/Chat';
 import axios from "axios";
 import * as pdfjsLib from "pdfjs-dist";
 import { saveAs } from "file-saver";
@@ -17,8 +16,6 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 
-const OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"; // Replace with your key
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const db = getFirestore();
 
 export default function App() {
@@ -72,22 +69,18 @@ export default function App() {
   const handleOpenAIQuery = async (queryText) => {
     setLoading(true);
     try {
-   const res = await axios.post(
-  "https://joe-ai-backend-production.up.railway.app/ask",
-  { message: queryText },
-  {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  }
-);
-
-const answer = res.data.response;
-setResponse(answer);
-await storeChat(queryText, answer);
-
+      const res = await axios.post(
+        "https://joe-ai-backend-production.up.railway.app/ask",
+        { message: queryText },
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      const answer = res.data.response;
+      setResponse(answer);
+      await storeChat(queryText, answer);
     } catch {
-      setResponse("Error reaching OpenAI API.");
+      setResponse("Error reaching JOE AI backend.");
     } finally {
       setLoading(false);
     }
@@ -120,7 +113,7 @@ await storeChat(queryText, answer);
 
   const askAboutFile = () => {
     if (!fileContent || !question) return;
-    handleOpenAIQuery(`Based on this document: ${fileContent}\n\nAnswer: ${question}`);
+    handleOpenAIQuery(`Based on this document:\n${fileContent}\n\nAnswer this:\n${question}`);
   };
 
   const exportResponse = () => {
@@ -132,24 +125,12 @@ await storeChat(queryText, answer);
     {
       id: 1,
       topic: "AI in Healthcare",
-      articles: [
-        {
-          id: "a1",
-          title: "Transforming diagnostics",
-          snippet: "AI is used to detect diseases faster...",
-        },
-      ],
+      articles: [{ id: "a1", title: "Transforming diagnostics", snippet: "AI is used to detect diseases faster..." }],
     },
     {
       id: 2,
       topic: "NLP",
-      articles: [
-        {
-          id: "b1",
-          title: "Chatbots 2025",
-          snippet: "Chatbots now understand better thanks to transformers...",
-        },
-      ],
+      articles: [{ id: "b1", title: "Chatbots 2025", snippet: "Chatbots now understand better thanks to transformers..." }],
     },
   ];
 
@@ -174,40 +155,20 @@ await storeChat(queryText, answer);
   }
 
   return (
-    <div
-      className={`${
-        darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-black"
-      } min-h-screen p-6`}
-    >
+    <div className={`${darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-black"} min-h-screen p-6`}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">JOE AI – Your Research Assistant</h1>
-       <div className="flex flex-wrap items-center gap-3">
- <div className="flex flex-wrap items-center gap-3">
-  {/* Avatar and Name */}
-  <div className="flex items-center gap-2">
-    <img src={user.photoURL} alt="avatar" className="w-8 h-8 rounded-full" />
-    <span className="text-sm font-medium truncate max-w-[120px]">{user.displayName}</span>
-  </div>
+        <div className="flex items-center gap-3">
+          <img src={user.photoURL} alt="avatar" className="w-8 h-8 rounded-full" />
+          <span className="text-sm">{user.displayName}</span>
+          <button onClick={logout} className="text-sm px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">Logout</button>
+          <button onClick={() => setDarkMode(!darkMode)} className="text-sm px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">
+            Toggle {darkMode ? "Light" : "Dark"} Mode
+          </button>
+        </div>
+      </div>
 
-  {/* Logout Button */}
-  <button
-    onClick={logout}
-    className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-  >
-    Logout
-  </button>
-  {/* Dark Mode Toggle */}
-  <button
-    onClick={() => setDarkMode(!darkMode)}
-    className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
-  >
-    Toggle {darkMode ? "Light" : "Dark"} Mode
-  </button>
-</div>
-</div>
-</div>
-
-      {/* Ask AI */}
+      {/* Ask AI Input */}
       <div className="max-w-xl mx-auto mb-6">
         <input
           className="w-full border px-4 py-2 rounded mb-2"
@@ -235,15 +196,10 @@ await storeChat(queryText, answer);
         )}
       </div>
 
-      {/* Upload File */}
+      {/* Upload PDF or Text */}
       <div className="max-w-xl mx-auto bg-white p-4 rounded shadow mb-6 text-black">
         <h2 className="text-lg font-semibold mb-2">Upload Document (.txt/.pdf)</h2>
-        <input
-          type="file"
-          accept=".txt,.pdf"
-          onChange={handleFileUpload}
-          className="mb-2"
-        />
+        <input type="file" accept=".txt,.pdf" onChange={handleFileUpload} className="mb-2" />
         <textarea
           className="w-full border px-3 py-2 rounded mb-2"
           placeholder="Ask something about the document..."
@@ -258,6 +214,7 @@ await storeChat(queryText, answer);
           Ask About Document
         </button>
       </div>
+
       {/* Knowledge Clusters */}
       <div className="max-w-4xl mx-auto">
         <h2 className="text-xl font-bold mb-4">Knowledge Clusters</h2>
@@ -279,10 +236,7 @@ await storeChat(queryText, answer);
             <h3 className="text-xl font-bold mb-2">Articles on {selectedCluster.topic}</h3>
             <div className="space-y-3">
               {selectedCluster.articles.map((a) => (
-                <div
-                  key={a.id}
-                  className="p-3 bg-white text-black rounded border"
-                >
+                <div key={a.id} className="p-3 bg-white text-black rounded border">
                   <h4 className="font-semibold">{a.title}</h4>
                   <p className="text-gray-700 text-sm">{a.snippet}</p>
                 </div>
@@ -300,16 +254,9 @@ await storeChat(queryText, answer);
         )}
         <div className="space-y-6 max-h-96 overflow-y-auto">
           {chatHistory.map((chat) => (
-            <div
-              key={chat.id}
-              className="p-4 bg-white rounded shadow text-black"
-            >
-              <p>
-                <strong className="text-blue-600">You:</strong> {chat.prompt}
-              </p>
-              <p className="mt-2">
-                <strong className="text-green-600">JOE AI:</strong> {chat.answer}
-              </p>
+            <div key={chat.id} className="p-4 bg-white rounded shadow text-black">
+              <p><strong className="text-blue-600">You:</strong> {chat.prompt}</p>
+              <p className="mt-2"><strong className="text-green-600">JOE AI:</strong> {chat.answer}</p>
             </div>
           ))}
         </div>
@@ -317,6 +264,7 @@ await storeChat(queryText, answer);
     </div>
   );
 }
+
 
 
 
