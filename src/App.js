@@ -67,6 +67,10 @@ export default function App() {
   };
 
   const handleOpenAIQuery = async (queryText) => {
+    if (!queryText) {
+      setResponse("Please enter a question or query.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await axios.post(
@@ -76,10 +80,19 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
         }
       );
-      const answer = res.data.response;
+
+      console.log("🟢 Backend response:", res.data);
+
+      // Accept response from either `response` or `message` field
+      const answer = res.data.response || res.data.message || "No valid answer received.";
       setResponse(answer);
+
       await storeChat(queryText, answer);
-    } catch {
+    } catch (error) {
+      console.error("❌ Axios error:", error);
+      if (error.response) {
+        console.error("Backend error response:", error.response.data);
+      }
       setResponse("Error reaching JOE AI backend.");
     } finally {
       setLoading(false);
@@ -112,11 +125,16 @@ export default function App() {
   };
 
   const askAboutFile = () => {
-    if (!fileContent || !question) return;
-    handleOpenAIQuery(`Based on this document:\n${fileContent}\n\nAnswer this:\n${question}`);
+    if (!fileContent || !question) {
+      setResponse("Please upload a document and ask a question.");
+      return;
+    }
+    const combinedPrompt = `Based on this document:\n${fileContent}\n\nAnswer this:\n${question}`;
+    handleOpenAIQuery(combinedPrompt);
   };
 
   const exportResponse = () => {
+    if (!response) return;
     const blob = new Blob([response], { type: "text/plain;charset=utf-8" });
     saveAs(blob, "response.txt");
   };
