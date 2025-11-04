@@ -1,40 +1,100 @@
-import React, { useState, useEffect, useRef } from "react";
+
+      import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
-// Main Chat Component
-function Chat() {
-  const [message, setMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState([]);
-  const [pdfText, setPdfText] = useState("");
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef(null);
+/**
+ * JOE AI Chat Component
+ * Features:
+ * - Multi-PDF upload
+ * - PDF text extraction
+ * - Chat bubbles (AI/user)
+ * - Dark/Light mode toggle
+ * - Emoji support
+ * - Timestamps for messages
+ * - Typing indicator
+ * - Scrollable chat history
+ * - Responsive design
+ * Everything in one file
+ */
 
-  // Scroll to bottom when chat updates
+function Chat() {
+  // Main states
+  const [messages, setMessages] = useState([]); // Chat history
+  const [input, setInput] = useState(""); // Input box
+  const [pdfs, setPdfs] = useState([]); // Uploaded PDFs
+  const [pdfText, setPdfText] = useState(""); // Extracted PDF text
+  const [loading, setLoading] = useState(false); // Loading indicator
+  const [darkMode, setDarkMode] = useState(false); // Theme toggle
+  const chatEndRef = useRef(null); // Scroll ref
+
+  // Scroll to bottom on new message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory]);
+  }, [messages]);
 
-  // Handle sending message
+  // Toggle dark/light mode
+  const toggleTheme = () => setDarkMode(!darkMode);
+
+  // Helper: extract text from a PDF
+  const extractTextFromPDF = async (file) => {
+    const pdfjsLib = await import("pdfjs-dist/build/pdf");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const typedArray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = content.items.map((item) => item.str);
+          text += strings.join(" ") + "\n";
+        }
+        resolve(text);
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Handle PDF file uploads (multiple)
+  const handlePDFUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    setPdfs(files);
+
+    let combinedText = "";
+    for (const file of files) {
+      const text = await extractTextFromPDF(file);
+      combinedText += text + "\n";
+    }
+    setPdfText(combinedText);
+  };
+
+  // Send message to AI
   const sendMessage = async () => {
-    if (!message.trim()) return;
+    if (!input.trim()) return;
 
-    const userMessage = { sender: "user", text: message };
-    setChatHistory([...chatHistory, userMessage]);
-    setMessage("");
+    const userMsg = { sender: "user", text: input, time: new Date() };
+    setMessages([...messages, userMsg]);
+    setInput("");
     setLoading(true);
 
     try {
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/ask`, {
-        message: message,
+        message: input,
         context: pdfText,
       });
-
-      const aiMessage = { sender: "ai", text: res.data.response };
-      setChatHistory((prev) => [...prev, aiMessage]);
+      const aiMsg = { sender: "ai", text: res.data.response, time: new Date() };
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (error) {
-      const errorMessage = { sender: "ai", text: "Something went wrong!" };
-      setChatHistory((prev) => [...prev, errorMessage]);
+      const errorMsg = {
+        sender: "ai",
+        text: "Oops! Something went wrong.",
+        time: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
       console.error("Error:", error);
     } finally {
       setLoading(false);
@@ -49,113 +109,140 @@ function Chat() {
     }
   };
 
-  // Extract text from PDF
-  const extractTextFromPDF = async (file) => {
-    const pdfjsLib = await import("pdfjs-dist/build/pdf");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-    const fileReader = new FileReader();
-
-    return new Promise((resolve, reject) => {
-      fileReader.onload = async function () {
-        const typedArray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedArray).promise;
-        let text = "";
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const strings = content.items.map((item) => item.str);
-          text += strings.join(" ") + "\n";
-        }
-        resolve(text);
-      };
-      fileReader.onerror = reject;
-      fileReader.readAsArrayBuffer(file);
-    });
-  };
-
-  // Handle PDF file upload
-  const handleFileChange = async (e) => {
-    const selectedFile = e.target.files[0];
-    setFile(selectedFile);
-    const extractedText = await extractTextFromPDF(selectedFile);
-    setPdfText(extractedText);
-  };
+  // Emoji picker
+  const insertEmoji = (emoji) => setInput(input + emoji);
 
   // Chat bubble component
-  const ChatBubble = ({ message }) => (
+  const ChatBubble = ({ msg }) => (
     <div
       style={{
+        maxWidth: "70%",
         padding: "10px 15px",
         margin: "5px 0",
         borderRadius: "20px",
-        maxWidth: "70%",
+        alignSelf: msg.sender === "user" ? "flex-end" : "flex-start",
+        backgroundColor: msg.sender === "user" ? "#4b7bec" : "#e6e6e6",
+        color: msg.sender === "user" ? "white" : "black",
         wordWrap: "break-word",
-        backgroundColor: message.sender === "user" ? "#4b7bec" : "#e6e6e6",
-        color: message.sender === "user" ? "white" : "black",
-        alignSelf: message.sender === "user" ? "flex-end" : "flex-start",
-        marginLeft: message.sender === "user" ? "auto" : "0",
-        marginRight: message.sender === "ai" ? "auto" : "0",
+        boxShadow: "0px 2px 5px rgba(0,0,0,0.1)",
+        fontSize: "15px",
+        lineHeight: "1.4",
+        position: "relative",
       }}
     >
-      <p style={{ margin: 0 }}>{message.text}</p>
+      <p style={{ margin: 0 }}>{msg.text}</p>
+      <span
+        style={{
+          fontSize: "10px",
+          position: "absolute",
+          bottom: "-15px",
+          right: "10px",
+          color: "#555",
+        }}
+      >
+        {msg.time.toLocaleTimeString()}
+      </span>
     </div>
   );
 
+  // Main render
   return (
     <div
       style={{
-        maxWidth: "800px",
-        margin: "0 auto",
-        padding: "20px",
         fontFamily: "Arial, sans-serif",
+        padding: "20px",
+        maxWidth: "900px",
+        margin: "0 auto",
+        height: "100vh",
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        backgroundColor: darkMode ? "#1e1e1e" : "#f9f9f9",
+        color: darkMode ? "#f9f9f9" : "#1e1e1e",
       }}
     >
-      <h1 style={{ textAlign: "center" }}>🤖 JOE AI Assistant</h1>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ margin: "0" }}>🤖 JOE AI Assistant</h1>
+        <button
+          onClick={toggleTheme}
+          style={{
+            padding: "5px 15px",
+            borderRadius: "5px",
+            border: "none",
+            cursor: "pointer",
+            backgroundColor: darkMode ? "#f9f9f9" : "#1e1e1e",
+            color: darkMode ? "#1e1e1e" : "#f9f9f9",
+          }}
+        >
+          {darkMode ? "Light Mode" : "Dark Mode"}
+        </button>
+      </div>
 
-      {/* PDF Uploader */}
-      <div style={{ margin: "10px 0" }}>
-        <input type="file" accept=".pdf" onChange={handleFileChange} />
-        {file && <p>Loaded PDF: {file.name}</p>}
+      {/* PDF uploader */}
+      <div style={{ margin: "15px 0" }}>
+        <input type="file" accept=".pdf" multiple onChange={handlePDFUpload} />
+        {pdfs.length > 0 && (
+          <p style={{ marginTop: "5px" }}>
+            Uploaded PDFs: {pdfs.map((f) => f.name).join(", ")}
+          </p>
+        )}
       </div>
 
       {/* Chat box */}
       <div
         style={{
           flex: 1,
-          border: "1px solid #ccc",
-          padding: "10px",
           overflowY: "auto",
+          padding: "15px",
           borderRadius: "10px",
-          backgroundColor: "#f8f9fa",
+          border: "1px solid #ccc",
+          backgroundColor: darkMode ? "#2a2a2a" : "#fff",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        {chatHistory.map((msg, idx) => (
-          <ChatBubble key={idx} message={msg} />
+        {messages.map((msg, idx) => (
+          <ChatBubble key={idx} msg={msg} />
         ))}
-        {loading && <ChatBubble message={{ sender: "ai", text: "Typing..." }} />}
+        {loading && <ChatBubble msg={{ sender: "ai", text: "Typing...", time: new Date() }} />}
         <div ref={chatEndRef} />
       </div>
 
-      {/* Message input */}
+      {/* Emoji picker */}
+      <div style={{ marginTop: "10px", display: "flex", flexWrap: "wrap" }}>
+        {["😀", "😂", "😎", "😍", "👍", "🔥", "💡", "🎉"].map((e, i) => (
+          <button
+            key={i}
+            onClick={() => insertEmoji(e)}
+            style={{
+              fontSize: "20px",
+              margin: "3px",
+              padding: "5px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+            }}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+
+      {/* Input box */}
       <textarea
-        rows="3"
         placeholder="Type your message..."
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyPress}
+        rows={3}
         style={{
-          width: "100%",
+          marginTop: "10px",
           padding: "10px",
           borderRadius: "5px",
-          marginTop: "10px",
+          border: "1px solid #ccc",
           resize: "none",
+          backgroundColor: darkMode ? "#3a3a3a" : "#fff",
+          color: darkMode ? "#f9f9f9" : "#1e1e1e",
         }}
       />
 
@@ -169,6 +256,7 @@ function Chat() {
           backgroundColor: "#4b7bec",
           color: "white",
           cursor: "pointer",
+          fontWeight: "bold",
         }}
       >
         Send
@@ -178,3 +266,4 @@ function Chat() {
 }
 
 export default Chat;
+
